@@ -45,7 +45,72 @@ export default class SimpleMerkle {
         }
     }
 
+     /**
+     * Builds a merkle proof
+     * @param index {Number}
+     * @returns {Proof}
+     */
+    generateProof = (index) => {
+        if (this.input.length <= index) throw "No valid in index";
+        let path = new Uint8Array(this.depth).fill(0);
+        let base2 = (index).toString(2);
+        for (let i = 0; i < base2.length; i++) {
+            path[i] = Number(base2[base2.length - i - 1]);
+        }
+        let lemma = [this.nodes[index]];
+        let offset = 0;
+        let pos = index;
+        let width = this.input.length;
+        for (let i = 0; i < this.depth; i++) {
+            if (path[i]) {
+                lemma.push(this.nodes[offset + pos - 1]);
+            } else {
+                lemma.push(this.nodes[offset + pos + 1]);
+            }
+            pos >>= 1;
+            offset += width;
+            width >>= 1;
+        }
+        lemma.push(this.root);
+        return new Proof(path, lemma, this.nodeHash);
+    }
+
+
     get root(): Uint8Array {
         return this.nodes[this.nodes.length];
+    }
+}
+
+class Proof {
+    /**
+     * A proof of a merkle tree
+     * @param path {[Number]}
+     * @param lemma {Array}
+     * @param nodeHash {Function} Hashing function for a node
+     */
+    path: Uint8Array;
+    lemma: Array<Uint8Array>;
+    nodeHash: any;
+
+    constructor(path: Uint8Array, lemma: Array<Uint8Array>, nodeHash: any) {
+        this.path = path;
+        this.lemma = lemma;
+        this.nodeHash = nodeHash;
+    }
+
+    /**
+     * Validates proof
+     * @returns {boolean}
+     */
+    validate() : boolean {
+        let hash = this.lemma[0];
+        for (let i = 0; i < this.path.length; i++) {
+            if (this.path[i]) {
+               hash = this.nodeHash(this.lemma[i + 1], hash);
+            } else {
+               hash = this.nodeHash(hash, this.lemma[i + 1]);
+            }
+        }
+        return hash === this.lemma[this.lemma.length - 1];
     }
 }
